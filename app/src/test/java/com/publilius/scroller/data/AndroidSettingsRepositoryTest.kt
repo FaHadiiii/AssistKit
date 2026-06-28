@@ -21,12 +21,15 @@ class AndroidSettingsRepositoryTest {
         val repository = AndroidSettingsRepository(dataStore)
 
         assertEquals(ScrollSpeed.DEFAULT, repository.scrollSpeed.first())
+        assertEquals(true, repository.voiceCommandsEnabled.first())
         assertNull(repository.getOverlayPosition())
 
         repository.setScrollSpeed(ScrollSpeed.fromLevel(9))
+        repository.setVoiceCommandsEnabled(false)
         repository.setOverlayPosition(OverlayPosition(x = 120, y = 240))
 
         assertEquals(ScrollSpeed.fromLevel(9), repository.scrollSpeed.first())
+        assertEquals(false, repository.voiceCommandsEnabled.first())
         assertEquals(OverlayPosition(120, 240), repository.getOverlayPosition())
     }
 }

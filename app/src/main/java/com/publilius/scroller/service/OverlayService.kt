@@ -1,5 +1,6 @@
 package com.publilius.scroller.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,17 +9,21 @@ import android.app.Service
 import android.content.Context.AUDIO_SERVICE
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.IBinder
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.publilius.scroller.R
 import com.publilius.scroller.controller.ScrollCommand
 import com.publilius.scroller.controller.ScrollController
 import com.publilius.scroller.data.AppContainer
+import com.publilius.scroller.model.VoiceStatus
 import com.publilius.scroller.data.SettingsRepository
 import com.publilius.scroller.model.ScrollState
 import com.publilius.scroller.ui.MainActivity
+import com.publilius.scroller.voice.VoiceCommandCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,11 +38,17 @@ class OverlayService : Service() {
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var overlayManager: OverlayManager
     private lateinit var audioManager: AudioManager
+    private lateinit var voiceCommandCoordinator: VoiceCommandCoordinator
 
     override fun onCreate() {
         super.onCreate()
         settingsRepository = AppContainer.settingsRepository(applicationContext)
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        voiceCommandCoordinator = VoiceCommandCoordinator(
+            context = this,
+            onPause = { ScrollController.pause() },
+            onStart = { ScrollController.start() },
+        )
         overlayManager = OverlayManager(
             context = this,
             onPersistPosition = { position ->
@@ -59,6 +70,9 @@ class OverlayService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification(ScrollController.state.value))
         ScrollController.setOverlayVisible(true)
+        ScrollController.setVoiceStatus(VoiceStatus.Inactive)
+        voiceCommandCoordinator.onVoiceCommandsEnabledChanged(ScrollController.voiceCommandsEnabled.value)
+        voiceCommandCoordinator.start()
 
         serviceScope.launch(Dispatchers.IO) {
             ScrollController.syncSavedSpeed(settingsRepository.scrollSpeed.first())
@@ -84,11 +98,18 @@ class OverlayService : Service() {
             }
         }
         serviceScope.launch {
+            settingsRepository.voiceCommandsEnabled.collectLatest { enabled ->
+                ScrollController.syncVoiceCommandsEnabled(enabled)
+            }
+        }
+        serviceScope.launch {
             ScrollController.state.collectLatest { state ->
+                voiceCommandCoordinator.onScrollStateChanged(state)
                 overlayManager.render(
                     state = state,
                     scrollSpeed = ScrollController.scrollSpeed.value,
                     expanded = ScrollController.overlayExpanded.value,
+                    voiceStatus = ScrollController.voiceStatus.value,
                 )
                 updateNotification(state)
             }
@@ -99,6 +120,7 @@ class OverlayService : Service() {
                     state = ScrollController.state.value,
                     scrollSpeed = speed,
                     expanded = ScrollController.overlayExpanded.value,
+                    voiceStatus = ScrollController.voiceStatus.value,
                 )
             }
         }
@@ -108,7 +130,25 @@ class OverlayService : Service() {
                     state = ScrollController.state.value,
                     scrollSpeed = ScrollController.scrollSpeed.value,
                     expanded = expanded,
+                    voiceStatus = ScrollController.voiceStatus.value,
                 )
+            }
+        }
+        serviceScope.launch {
+            ScrollController.voiceStatus.collectLatest { voiceStatus ->
+                overlayManager.render(
+                    state = ScrollController.state.value,
+                    scrollSpeed = ScrollController.scrollSpeed.value,
+                    expanded = ScrollController.overlayExpanded.value,
+                    voiceStatus = voiceStatus,
+                )
+                updateNotification(ScrollController.state.value)
+            }
+        }
+        serviceScope.launch {
+            ScrollController.voiceCommandsEnabled.collectLatest { enabled ->
+                voiceCommandCoordinator.onVoiceCommandsEnabledChanged(enabled)
+                updateNotification(ScrollController.state.value)
             }
         }
     }
@@ -127,6 +167,7 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        voiceCommandCoordinator.stop()
         overlayManager.hide()
         ScrollController.setOverlayVisible(false)
         ScrollController.setOverlayExpanded(false)
@@ -142,6 +183,15 @@ class OverlayService : Service() {
     }
 
     private fun buildNotification(state: ScrollState): Notification {
+        val microphoneGranted = ActivityCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        val voiceStatusLabelResId = when {
+            !ScrollController.voiceCommandsEnabled.value -> R.string.voice_status_disabled
+            !microphoneGranted -> R.string.voice_status_permission_required
+            else -> ScrollController.voiceStatus.value.labelResId
+        }
         val contentIntent = PendingIntent.getActivity(
             this,
             1,
@@ -162,6 +212,7 @@ class OverlayService : Service() {
             )
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
+            .setSubText(getString(voiceStatusLabelResId))
             .setContentIntent(contentIntent)
             .addAction(
                 0,

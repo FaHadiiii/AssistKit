@@ -7,6 +7,7 @@ import com.publilius.scroller.controller.ScrollController
 import com.publilius.scroller.data.SettingsRepository
 import com.publilius.scroller.model.ScrollSpeed
 import com.publilius.scroller.model.ScrollState
+import com.publilius.scroller.model.VoiceStatus
 import com.publilius.scroller.util.PermissionStatus
 import com.publilius.scroller.util.PermissionStatusChecker
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,10 +21,13 @@ data class MainUiState(
     val permissions: PermissionStatus = PermissionStatus(
         accessibilityEnabled = false,
         overlayEnabled = false,
+        microphoneEnabled = false,
     ),
     val scrollState: ScrollState = ScrollState.Idle,
     val scrollSpeed: ScrollSpeed = ScrollSpeed.DEFAULT,
     val overlayVisible: Boolean = false,
+    val voiceStatus: VoiceStatus = VoiceStatus.Inactive,
+    val voiceCommandsEnabled: Boolean = true,
 )
 
 class MainViewModel(
@@ -33,6 +37,7 @@ class MainViewModel(
         PermissionStatus(
             accessibilityEnabled = false,
             overlayEnabled = false,
+            microphoneEnabled = false,
         ),
     )
 
@@ -41,13 +46,17 @@ class MainViewModel(
         ScrollController.state,
         ScrollController.scrollSpeed,
         ScrollController.overlayVisible,
-    ) { permissionStatus, scrollState, scrollSpeed, overlayVisible ->
+        ScrollController.voiceStatus,
+    ) { permissionStatus, scrollState, scrollSpeed, overlayVisible, voiceStatus ->
         MainUiState(
             permissions = permissionStatus,
             scrollState = scrollState,
             scrollSpeed = scrollSpeed,
             overlayVisible = overlayVisible,
+            voiceStatus = voiceStatus,
         )
+    }.combine(ScrollController.voiceCommandsEnabled) { uiState, voiceCommandsEnabled ->
+        uiState.copy(voiceCommandsEnabled = voiceCommandsEnabled)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000L),
@@ -60,6 +69,11 @@ class MainViewModel(
                 ScrollController.syncSavedSpeed(speed)
             }
         }
+        viewModelScope.launch {
+            settingsRepository.voiceCommandsEnabled.collect { enabled ->
+                ScrollController.syncVoiceCommandsEnabled(enabled)
+            }
+        }
     }
 
     fun refreshPermissions(context: android.content.Context) {
@@ -70,6 +84,13 @@ class MainViewModel(
         ScrollController.setScrollSpeed(speed)
         viewModelScope.launch {
             settingsRepository.setScrollSpeed(speed)
+        }
+    }
+
+    fun setVoiceCommandsEnabled(enabled: Boolean) {
+        ScrollController.syncVoiceCommandsEnabled(enabled)
+        viewModelScope.launch {
+            settingsRepository.setVoiceCommandsEnabled(enabled)
         }
     }
 

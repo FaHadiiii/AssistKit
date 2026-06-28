@@ -1,15 +1,18 @@
 package com.publilius.scroller.ui
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,12 +35,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,6 +58,11 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels {
         MainViewModel.Factory(AppContainer.settingsRepository(applicationContext))
     }
+    private val microphonePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {
+        viewModel.refreshPermissions(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +75,8 @@ class MainActivity : ComponentActivity() {
                     onRefreshPermissions = { viewModel.refreshPermissions(this) },
                     onOpenAccessibilitySettings = ::openAccessibilitySettings,
                     onOpenOverlaySettings = ::openOverlaySettings,
+                    onRequestMicrophonePermission = ::requestMicrophonePermission,
+                    onSetVoiceCommandsEnabled = viewModel::setVoiceCommandsEnabled,
                     onSetSpeed = viewModel::setScrollSpeed,
                     onLaunchOverlay = { OverlayService.start(this) },
                     onStopOverlay = { OverlayService.stop(this) },
@@ -91,6 +102,10 @@ class MainActivity : ComponentActivity() {
             ),
         )
     }
+
+    private fun requestMicrophonePermission() {
+        microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
 }
 
 @Composable
@@ -99,6 +114,8 @@ private fun MainScreen(
     onRefreshPermissions: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onOpenOverlaySettings: () -> Unit,
+    onRequestMicrophonePermission: () -> Unit,
+    onSetVoiceCommandsEnabled: (Boolean) -> Unit,
     onSetSpeed: (ScrollSpeed) -> Unit,
     onLaunchOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
@@ -107,14 +124,7 @@ private fun MainScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.background,
-                        ),
-                    ),
-                )
+                .background(Color.Black)
                 .safeDrawingPadding()
                 .padding(innerPadding),
         ) {
@@ -131,11 +141,14 @@ private fun MainScreen(
                         permissionStatus = uiState.permissions,
                         onOpenAccessibilitySettings = onOpenAccessibilitySettings,
                         onOpenOverlaySettings = onOpenOverlaySettings,
+                        onRequestMicrophonePermission = onRequestMicrophonePermission,
                         onRefreshPermissions = onRefreshPermissions,
                     )
                 } else {
                     SettingsScreen(
                         uiState = uiState,
+                        onRequestMicrophonePermission = onRequestMicrophonePermission,
+                        onSetVoiceCommandsEnabled = onSetVoiceCommandsEnabled,
                         onSetSpeed = onSetSpeed,
                         onLaunchOverlay = onLaunchOverlay,
                         onStopOverlay = onStopOverlay,
@@ -151,12 +164,22 @@ private fun HeaderBlock() {
     Column(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            text = "AssistKit",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher_black),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+            )
+            Spacer(modifier = Modifier.size(10.dp))
+            Text(
+                text = "AssistKit",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "User-initiated scrolling, volume, and lock controls with visible actions at all times.",
@@ -173,6 +196,7 @@ private fun SetupScreen(
     permissionStatus: PermissionStatus,
     onOpenAccessibilitySettings: () -> Unit,
     onOpenOverlaySettings: () -> Unit,
+    onRequestMicrophonePermission: () -> Unit,
     onRefreshPermissions: () -> Unit,
 ) {
     Text(
@@ -182,7 +206,7 @@ private fun SetupScreen(
     )
     Spacer(modifier = Modifier.height(6.dp))
     Text(
-        text = "Grant the two required permissions before launching the floating controller.",
+        text = "Grant the required permissions before launching the floating controller. Microphone access enables voice pause and start commands.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -206,6 +230,18 @@ private fun SetupScreen(
         granted = permissionStatus.overlayEnabled,
         actionIcon = R.drawable.ic_overlay_start,
         onAction = onOpenOverlaySettings,
+    )
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 14.dp),
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+    )
+    PermissionRow(
+        icon = R.drawable.ic_overlay_assist,
+        title = "Microphone access",
+        body = "Enables voice commands while the overlay is active: say pause while scrolling and start while paused.",
+        granted = permissionStatus.microphoneEnabled,
+        actionIcon = R.drawable.ic_overlay_start,
+        onAction = onRequestMicrophonePermission,
     )
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 14.dp),
@@ -308,6 +344,8 @@ private fun StatusLine(granted: Boolean) {
 @Composable
 private fun SettingsScreen(
     uiState: MainUiState,
+    onRequestMicrophonePermission: () -> Unit,
+    onSetVoiceCommandsEnabled: (Boolean) -> Unit,
     onSetSpeed: (ScrollSpeed) -> Unit,
     onLaunchOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
@@ -319,11 +357,22 @@ private fun SettingsScreen(
     )
     Spacer(modifier = Modifier.height(6.dp))
     Text(
-        text = "Choose a preset, then launch the floating controller. Auto-scroll, volume changes, and lock screen only run when you press them from the overlay.",
+        text = "Choose a preset, then launch the floating controller. Say pause while scrolling and start while paused if microphone access is enabled.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(modifier = Modifier.height(18.dp))
+    if (!uiState.permissions.microphoneEnabled) {
+        PermissionRow(
+            icon = R.drawable.ic_overlay_assist,
+            title = "Microphone access",
+            body = "Voice control needs microphone access so the overlay can hear pause while running and start while paused.",
+            granted = false,
+            actionIcon = R.drawable.ic_overlay_start,
+            onAction = onRequestMicrophonePermission,
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -365,6 +414,20 @@ private fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Voice: ${voiceStatusLabel(uiState)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 14.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+        )
+        VoiceToggleRow(
+            enabled = uiState.voiceCommandsEnabled,
+            onToggle = onSetVoiceCommandsEnabled,
+        )
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 14.dp),
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
@@ -393,6 +456,57 @@ private fun SettingsScreen(
                 onClick = onStopOverlay,
                 modifier = Modifier.weight(1f),
             )
+        }
+    }
+}
+
+@Composable
+private fun VoiceToggleRow(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Voice commands",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = if (enabled) {
+                    "Recognition is enabled for pause while running and start while paused."
+                } else {
+                    "Recognition is disabled."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+        Switch(
+            checked = enabled,
+            onCheckedChange = onToggle,
+        )
+    }
+}
+
+private fun voiceStatusLabel(uiState: MainUiState): String {
+    return when {
+        !uiState.permissions.microphoneEnabled -> "Microphone permission needed"
+        !uiState.voiceCommandsEnabled -> "Disabled in app settings"
+        else -> when (uiState.voiceStatus) {
+            com.publilius.scroller.model.VoiceStatus.Inactive -> "Inactive until scroll is running or paused"
+            com.publilius.scroller.model.VoiceStatus.Disabled -> "Disabled in app settings"
+            com.publilius.scroller.model.VoiceStatus.ListeningForPause -> "Listening for pause"
+            com.publilius.scroller.model.VoiceStatus.ListeningForStart -> "Listening for start"
+            com.publilius.scroller.model.VoiceStatus.PermissionRequired -> "Microphone permission needed"
+            com.publilius.scroller.model.VoiceStatus.Unavailable -> "Speech recognition unavailable on this device"
+            com.publilius.scroller.model.VoiceStatus.Error -> "Voice temporarily unavailable after repeated errors"
         }
     }
 }

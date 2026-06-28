@@ -2,6 +2,7 @@ package com.publilius.scroller.controller
 
 import com.publilius.scroller.model.ScrollState
 import com.publilius.scroller.model.ScrollSpeed
+import com.publilius.scroller.model.VoiceStatus
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,6 +22,12 @@ object ScrollController {
 
     private val _overlayVisible = MutableStateFlow(false)
     val overlayVisible: StateFlow<Boolean> = _overlayVisible.asStateFlow()
+
+    private val _voiceStatus = MutableStateFlow(VoiceStatus.Inactive)
+    val voiceStatus: StateFlow<VoiceStatus> = _voiceStatus.asStateFlow()
+
+    private val _voiceCommandsEnabled = MutableStateFlow(true)
+    val voiceCommandsEnabled: StateFlow<Boolean> = _voiceCommandsEnabled.asStateFlow()
 
     private val _commands = MutableSharedFlow<ScrollCommand>(extraBufferCapacity = 8)
     val commands: SharedFlow<ScrollCommand> = _commands.asSharedFlow()
@@ -71,6 +78,14 @@ object ScrollController {
         _overlayVisible.value = visible
     }
 
+    fun setVoiceStatus(status: VoiceStatus) {
+        _voiceStatus.value = status
+    }
+
+    fun syncVoiceCommandsEnabled(enabled: Boolean) {
+        _voiceCommandsEnabled.value = enabled
+    }
+
     fun volumeUp() {
         _commands.tryEmit(ScrollCommand.VolumeUp)
     }
@@ -88,6 +103,8 @@ object ScrollController {
         _scrollSpeed.value = ScrollSpeed.DEFAULT
         _overlayExpanded.value = false
         _overlayVisible.value = false
+        _voiceStatus.value = VoiceStatus.Inactive
+        _voiceCommandsEnabled.value = true
     }
 }
 

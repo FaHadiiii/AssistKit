@@ -3,6 +3,7 @@ package com.publilius.scroller.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -27,10 +28,20 @@ class AndroidSettingsRepository(
         ScrollSpeed.fromLevel(level)
     }
 
+    override val voiceCommandsEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[VOICE_COMMANDS_ENABLED_KEY] ?: true
+    }
+
     override suspend fun setScrollSpeed(speed: ScrollSpeed) {
         dataStore.edit { preferences ->
             preferences[SCROLL_SPEED_LEVEL_KEY] = speed.level
             preferences.remove(LEGACY_SPEED_PRESET_KEY)
+        }
+    }
+
+    override suspend fun setVoiceCommandsEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[VOICE_COMMANDS_ENABLED_KEY] = enabled
         }
     }
 
@@ -55,6 +66,7 @@ class AndroidSettingsRepository(
 
     companion object {
         private val SCROLL_SPEED_LEVEL_KEY = intPreferencesKey("scroll_speed_level")
+        private val VOICE_COMMANDS_ENABLED_KEY = booleanPreferencesKey("voice_commands_enabled")
         private val LEGACY_SPEED_PRESET_KEY = stringPreferencesKey("speed_preset")
         private val OVERLAY_X_KEY = intPreferencesKey("overlay_x")
         private val OVERLAY_Y_KEY = intPreferencesKey("overlay_y")

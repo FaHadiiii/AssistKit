@@ -16,6 +16,7 @@ import com.publilius.scroller.controller.ScrollController
 import com.publilius.scroller.model.OverlayPosition
 import com.publilius.scroller.model.ScrollSpeed
 import com.publilius.scroller.model.ScrollState
+import com.publilius.scroller.model.VoiceStatus
 import kotlin.math.roundToInt
 
 class OverlayManager(
@@ -57,6 +58,7 @@ class OverlayManager(
     private var latestState: ScrollState = ScrollState.Idle
     private var latestSpeed: ScrollSpeed = ScrollSpeed.DEFAULT
     private var latestExpanded: Boolean = false
+    private var latestVoiceStatus: VoiceStatus = VoiceStatus.Inactive
 
     private val dimRunnable = Runnable {
         rootView.alpha = IDLE_DIM_ALPHA
@@ -132,7 +134,7 @@ class OverlayManager(
             windowManager.updateViewLayout(rootView, layoutParams)
         }
         registerInteraction()
-        render(latestState, latestSpeed, latestExpanded)
+        render(latestState, latestSpeed, latestExpanded, latestVoiceStatus)
     }
 
     fun hide() {
@@ -143,10 +145,11 @@ class OverlayManager(
         }
     }
 
-    fun render(state: ScrollState, scrollSpeed: ScrollSpeed, expanded: Boolean) {
+    fun render(state: ScrollState, scrollSpeed: ScrollSpeed, expanded: Boolean, voiceStatus: VoiceStatus) {
         latestState = state
         latestSpeed = scrollSpeed
         latestExpanded = expanded
+        latestVoiceStatus = voiceStatus
 
         collapsedPill.isVisible = !expanded
         expandedPanel.isVisible = expanded

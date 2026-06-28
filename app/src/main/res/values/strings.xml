@@ -51,4 +51,11 @@
     <string name="scroll_speed_hint">Lower values scroll more gently. Higher values scroll faster.</string>
     <string name="overlay_move">Drag overlay</string>
     <string name="content_description_close">Close overlay</string>
+    <string name="voice_status_inactive">Voice idle</string>
+    <string name="voice_status_disabled">Voice off</string>
+    <string name="voice_status_listening_pause">Listening for pause</string>
+    <string name="voice_status_listening_start">Listening for start</string>
+    <string name="voice_status_permission_required">Mic permission needed</string>
+    <string name="voice_status_unavailable">Speech unavailable</string>
+    <string name="voice_status_error">Voice retry needed</string>
 </resources>
