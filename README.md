@@ -1,6 +1,6 @@
 # AssistKit
 
-![AssistKit icon](/Users/kacs/development/dev/assist_kit/app/src/main/res/mipmap-xxxhdpi/ic_launcher_black.png)
+![AssistKit icon](app/src/main/res/mipmap-xxxhdpi/ic_launcher_black.png)
 
 AssistKit is an Android accessibility-powered floating control kit built for moments when reaching the right system action should feel instant.
 
